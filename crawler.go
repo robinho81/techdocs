@@ -6,7 +6,32 @@ import (
 	"path/filepath"
 )
 
-func findFiles(rootFolder string, fileExtensions []string) []string {
+func findFilesInFolder(directory string, fileExtensions []string) (error, []string) {
+
+	filesFound := []string{}
+
+	f, err := os.Open(directory)
+	if err != nil {
+		fmt.Println("Error opening directory: " + err.Error())
+		return err, filesFound
+	}
+
+	filesInDirectory, readDirErr := f.Readdir(-1) // This indicates that all FileInfos should be returned
+
+	if readDirErr != nil {
+		fmt.Println("Error reading from directory: " + readDirErr.Error())
+		return readDirErr, filesFound
+	}
+
+	for _, file := range filesInDirectory {
+		if hasSpecifiedFileExtensions(file.Name(), fileExtensions) {
+			filesFound = append(filesFound, file.Name())
+		}
+	}
+	return nil, filesFound
+}
+
+func findAllFilesRecursively(rootFolder string, fileExtensions []string) []string {
 
 	filesFound := []string{}
 
