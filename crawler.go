@@ -6,34 +6,40 @@ import (
 	"path/filepath"
 )
 
-func findFilesInFolder(directory string, fileExtensions []string) (error, []string) {
+type Markdownfile struct {
+	Name string
+	Path string
+}
 
-	filesFound := []string{}
+func findFilesInFolder(directory string, fileExtensions []string) (error, []Markdownfile) {
+
+	markdownFilesFound := []Markdownfile{}
 
 	f, err := os.Open(directory)
 	if err != nil {
 		fmt.Println("Error opening directory: " + err.Error())
-		return err, filesFound
+		return err, markdownFilesFound
 	}
 
 	filesInDirectory, readDirErr := f.Readdir(-1) // This indicates that all FileInfos should be returned
 
 	if readDirErr != nil {
 		fmt.Println("Error reading from directory: " + readDirErr.Error())
-		return readDirErr, filesFound
+		return readDirErr, markdownFilesFound
 	}
 
 	for _, file := range filesInDirectory {
 		if hasSpecifiedFileExtensions(file.Name(), fileExtensions) {
-			filesFound = append(filesFound, file.Name())
+			md := Markdownfile{Name: file.Name(), Path: file.Name()}
+			markdownFilesFound = append(markdownFilesFound, md)
 		}
 	}
-	return nil, filesFound
+	return nil, markdownFilesFound
 }
 
-func findAllFilesRecursively(rootFolder string, fileExtensions []string) []string {
+func findAllFilesRecursively(rootFolder string, fileExtensions []string) []Markdownfile {
 
-	filesFound := []string{}
+	markdownFilesFound := []Markdownfile{}
 
 	// calls the specified (anonymous) method to walk the folder structure
 	// we do this so that we can use the parameters to this function within the method body
@@ -42,14 +48,16 @@ func findAllFilesRecursively(rootFolder string, fileExtensions []string) []strin
 			return err
 		}
 		if hasSpecifiedFileExtensions(path, fileExtensions) {
-			filesFound = append(filesFound, path)
+			fileName := filepath.Base(path)
+			markdownFile := Markdownfile{Name: fileName, Path: path}
+			markdownFilesFound = append(markdownFilesFound, markdownFile)
 		}
 		return err
 	})
 	if err != nil {
 		fmt.Printf("\n An error occurred")
 	}
-	return filesFound
+	return markdownFilesFound
 }
 
 func hasSpecifiedFileExtensions(path string, fileExtensions []string) bool {

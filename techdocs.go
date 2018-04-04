@@ -11,25 +11,58 @@ import (
 
 func main() {
 	recursiveFlag := flag.Bool("r", false, "Recursively search the specified directory for markdown files")
-	outputFileName := flag.String("o", "output.html", "Specify the output file or folder")
+	outputFolderName := flag.String("o", "output", "Specify the output folder")
 	flag.Parse()
 
-	markdownFileOrFolder := getFolderOrFileFromArgs()
+	outputFolderError := checkOutputFolder(*outputFolderName)
+	if outputFolderError != nil {
+		fmt.Println("Error checking the output folder: " + outputFolderError.Error())
+		return
+	}
 
+	markdownFileOrFolder := getFolderOrFileFromArgs()
+	isDirectory, inputFolderErr := checkInputFolder(markdownFileOrFolder)
+	if inputFolderErr != nil {
+		fmt.Println("Error checking the specified folder: " + inputFolderErr.Error())
+		return
+	}
+
+	if isDirectory {
+		readDirectory(markdownFileOrFolder, *outputFolderName, *recursiveFlag)
+	} else {
+		readMarkdownFile(markdownFileOrFolder, *outputFolderName)
+	}
+}
+
+func checkInputFolder(markdownFileOrFolder string) (bool, error) {
 	stat, errStat := os.Stat(markdownFileOrFolder)
 
 	if errStat != nil {
 		fmt.Println("Error opening specified file or folder \"" + markdownFileOrFolder + "\": " + errStat.Error())
-		return
+		return false, errStat
 	}
 
-	isDirectory := stat.IsDir()
+	return stat.IsDir(), nil
+}
 
-	if isDirectory {
-		readDirectory(markdownFileOrFolder, *outputFileName, *recursiveFlag)
-	} else {
-		readMarkdownFile(markdownFileOrFolder, *outputFileName)
+func checkOutputFolder(outputFolder string) error {
+
+	if outputFolder == "output" {
+		fmt.Println("No output folder specified, creating folder \"output\"")
+		createErr := os.Mkdir(outputFolder, os.ModePerm)
+		if createErr != nil {
+			return createErr
+		}
 	}
+
+	_, errStat := os.Stat(outputFolder)
+	if errStat != nil {
+		return errStat
+	}
+
+	// TODO check if this is a folder
+
+	return nil
 }
 
 func getFolderOrFileFromArgs() string {
@@ -46,14 +79,16 @@ func readDirectory(folderPath string, outputFileName string, isRecursive bool) {
 	// TODO configure file extensions
 	fileExtensions := []string{".md"}
 
-	if isRecursive {
+	var markdownFiles []Markdownfile
 
-		markdownFiles := findAllFilesRecursively(folderPath, fileExtensions)
+	if isRecursive {
+		markdownFiles = findAllFilesRecursively(folderPath, fileExtensions)
 		fmt.Printf("Found markdown files: %d", len(markdownFiles))
 	} else {
-		_, markdownFiles := findFilesInFolder(folderPath, fileExtensions)
+		_, markdownFiles = findFilesInFolder(folderPath, fileExtensions)
 		fmt.Printf("Found markdown files: %d", len(markdownFiles))
 	}
+
 }
 
 func readMarkdownFile(specifiedFilePath string, outputFileName string) {
