@@ -3,10 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"os"
-
-	blackfriday "gopkg.in/russross/blackfriday.v2"
 )
 
 func main() {
@@ -28,9 +25,16 @@ func main() {
 	}
 
 	if isDirectory {
-		readDirectory(markdownFileOrFolder, *outputFolderName, *recursiveFlag)
+		markdownFiles := readDirectory(markdownFileOrFolder, *recursiveFlag)
+		fmt.Printf("Found markdown files: %d \n", len(markdownFiles))
+		for _, mdFile := range markdownFiles {
+			outputFilePath := generateOutputFilePath(mdFile, *outputFolderName)
+			convertMarkdownFileToHtml(mdFile.Path, outputFilePath)
+		}
+
 	} else {
-		readMarkdownFile(markdownFileOrFolder, *outputFolderName)
+		fmt.Println("1 markdown file specified")
+		convertMarkdownFileToHtml(markdownFileOrFolder, *outputFolderName)
 	}
 }
 
@@ -48,10 +52,12 @@ func checkInputFolder(markdownFileOrFolder string) (bool, error) {
 func checkOutputFolder(outputFolder string) error {
 
 	if outputFolder == "output" {
-		fmt.Println("No output folder specified, creating folder \"output\"")
-		createErr := os.Mkdir(outputFolder, os.ModePerm)
-		if createErr != nil {
-			return createErr
+		if _, existsErr := os.Stat(outputFolder); os.IsNotExist(existsErr) {
+			fmt.Println("No output folder specified, creating folder \"output\"")
+			createErr := os.Mkdir(outputFolder, os.ModePerm)
+			if createErr != nil {
+				return createErr
+			}
 		}
 	}
 
@@ -74,38 +80,17 @@ func getFolderOrFileFromArgs() string {
 	return os.Args[numberOfArguments-1]
 }
 
-func readDirectory(folderPath string, outputFileName string, isRecursive bool) {
+func readDirectory(folderPath string, isRecursive bool) []Markdownfile {
 
 	// TODO configure file extensions
 	fileExtensions := []string{".md"}
 
-	var markdownFiles []Markdownfile
-
+	// TODO handle errors properly here
 	if isRecursive {
-		markdownFiles = findAllFilesRecursively(folderPath, fileExtensions)
-		fmt.Printf("Found markdown files: %d", len(markdownFiles))
+		_, markdownFiles := findAllFilesRecursively(folderPath, fileExtensions)
+		return markdownFiles
 	} else {
-		_, markdownFiles = findFilesInFolder(folderPath, fileExtensions)
-		fmt.Printf("Found markdown files: %d", len(markdownFiles))
+		_, markdownFiles := findFilesInFolder(folderPath, fileExtensions)
+		return markdownFiles
 	}
-
-}
-
-func readMarkdownFile(specifiedFilePath string, outputFileName string) {
-	bytes, err := ioutil.ReadFile(specifiedFilePath)
-
-	if err != nil {
-		fmt.Println("Error reading markdown file " + err.Error())
-		return
-	}
-
-	output := blackfriday.Run(bytes)
-	writeFileErr := ioutil.WriteFile(outputFileName, output, 0644)
-
-	if writeFileErr != nil {
-		fmt.Println("Error writing the file " + writeFileErr.Error())
-		return
-	}
-
-	fmt.Println("Wrote file to " + outputFileName)
 }

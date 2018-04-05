@@ -37,7 +37,7 @@ func findFilesInFolder(directory string, fileExtensions []string) (error, []Mark
 	return nil, markdownFilesFound
 }
 
-func findAllFilesRecursively(rootFolder string, fileExtensions []string) []Markdownfile {
+func findAllFilesRecursively(rootFolder string, fileExtensions []string) (error, []Markdownfile) {
 
 	markdownFilesFound := []Markdownfile{}
 
@@ -57,7 +57,7 @@ func findAllFilesRecursively(rootFolder string, fileExtensions []string) []Markd
 	if err != nil {
 		fmt.Printf("\n An error occurred")
 	}
-	return markdownFilesFound
+	return nil, markdownFilesFound
 }
 
 func hasSpecifiedFileExtensions(path string, fileExtensions []string) bool {
