@@ -4,9 +4,12 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"time"
 )
 
 func main() {
+	start := time.Now()
+
 	recursiveFlag := flag.Bool("r", false, "Recursively search the specified directory for markdown files")
 	outputFolderName := flag.String("o", "output", "Specify the output folder")
 	flag.Parse()
@@ -26,16 +29,25 @@ func main() {
 
 	if isDirectory {
 		markdownFiles := readDirectory(markdownFileOrFolder, *recursiveFlag)
-		fmt.Printf("Found markdown files: %d \n", len(markdownFiles))
+
+		ch := make(chan string, len(markdownFiles))
+
 		for _, mdFile := range markdownFiles {
 			outputFilePath := generateOutputFilePath(mdFile, *outputFolderName)
-			convertMarkdownFileToHtml(mdFile.Path, outputFilePath)
+			go convertMarkdownFileToHtmlInParallel(mdFile.Path, outputFilePath, ch)
+		}
+
+		for range markdownFiles {
+			filename := <-ch
+			fmt.Println("Generated file: " + filename)
 		}
 
 	} else {
-		fmt.Println("1 markdown file specified")
-		convertMarkdownFileToHtml(markdownFileOrFolder, *outputFolderName)
+		outputFileName := convertMarkdownFileToHtml(markdownFileOrFolder, *outputFolderName)
+		fmt.Println("Generated file: " + outputFileName)
 	}
+	duration := time.Since(start).Seconds()
+	fmt.Printf("Generated files in %f (s)", duration)
 }
 
 func checkInputFolder(markdownFileOrFolder string) (bool, error) {
