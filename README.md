@@ -1,8 +1,11 @@
 # techdocs
 
-A bit of fun with Go.
+Tools to help build, publish and host a set of HTML documents for use as help files within an application e.g. tooltips and hints.
 
-We have loads of markdown documents lying around that we want to display in a nice format.
+Pages can be generated from markdown documents in a git repository.
+Hints or tooltips can be generated from text files. 
+
+Both these get published against a particular version number for an application.
 
 This golang project will allow the user to crawl directories for markdown documents and convert these to HTML.
 
