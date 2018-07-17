@@ -8,7 +8,7 @@ import (
 	blackfriday "gopkg.in/russross/blackfriday.v2"
 )
 
-func convertMarkdownFileToHtmlInParallel(specifiedFilePath string, outputFileName string, ch chan string) {
+func convertMarkdownFilesAndSaveInParallel(specifiedFilePath string, outputFileName string, ch chan string) {
 	bytes, err := ioutil.ReadFile(specifiedFilePath)
 
 	if err != nil {
@@ -26,7 +26,20 @@ func convertMarkdownFileToHtmlInParallel(specifiedFilePath string, outputFileNam
 	ch <- outputFileName
 }
 
-func convertMarkdownFileToHtml(specifiedFilePath string, outputFileName string) string {
+func convertMarkdownFileToHtml(specifiedFilePath string) string {
+	inputBytes, err := ioutil.ReadFile(specifiedFilePath)
+
+	if err != nil {
+		fmt.Println("Error reading markdown file " + err.Error())
+		return ""
+	}
+
+	outputBytes := blackfriday.Run(inputBytes)
+	html := string(outputBytes[:])
+	return html
+}
+
+func convertMarkdownFileAndSave(specifiedFilePath string, outputFileName string) string {
 	bytes, err := ioutil.ReadFile(specifiedFilePath)
 
 	if err != nil {
