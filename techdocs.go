@@ -4,37 +4,88 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 )
 
 func main() {
-	start := time.Now()
-
 	recursiveFlag := flag.Bool("r", false, "Recursively search the specified directory for markdown files")
-	outputFolderName := flag.String("o", "output", "Specify the output folder")
+	outputFolderName := flag.String("o", "", "Specify the output folder")
+	persistData := flag.Bool("p", false, "Persist the data to mongo db")
+	versionTag := flag.String("t", "1.0.0", "Specify the version tag")
+	dbName := flag.String("d", "techdocs", "Specify the database / catalog name")
+	// Try the default Mongo connection string if none is specified
+	connectionString := flag.String("c", "mongodb://localhost:27017", "Specify connection string to Mongo")
+
 	flag.Parse()
 
-	outputFolderError := checkOutputFolder(*outputFolderName)
-	if outputFolderError != nil {
-		fmt.Println("Error checking the output folder: " + outputFolderError.Error())
-		return
+	if *persistData {
+		fmt.Println("Version Tag: " + *versionTag)
+		fmt.Println("Db name: " + *dbName)
+		fmt.Println("ConnectionString: " + *connectionString)
 	}
 
-	markdownFileOrFolder := getFolderOrFileFromArgs()
-	isDirectory, inputFolderErr := checkInputFolder(markdownFileOrFolder)
+	if *outputFolderName != "" {
+		outputFolderError := checkOutputFolder(*outputFolderName)
+		if outputFolderError != nil {
+			fmt.Println("Error checking the output folder: " + outputFolderError.Error())
+			return
+		}
+	}
+
+	inputFolder := getFolderOrFileFromArgs()
+	isDirectory, inputFolderErr := checkInputFolder(inputFolder)
 	if inputFolderErr != nil {
 		fmt.Println("Error checking the specified folder: " + inputFolderErr.Error())
 		return
 	}
 
+	// if an output folder is specified then save the files to disk, otherwise save to Db
+	if *outputFolderName != "" {
+		convertFilesAndWriteToDisk(isDirectory, *recursiveFlag, inputFolder, *outputFolderName)
+	} else if *persistData {
+		convertFilesAndSaveToDb(isDirectory, *recursiveFlag, inputFolder, *versionTag, *dbName, *connectionString)
+	}
+}
+
+func convertFilesAndSaveToDb(isDirectory bool, recursiveFlag bool, markdownFileOrFolder string, versionTag string, dbName string, connectionString string) {
+	start := time.Now()
+
+	db, dbErr := connect(connectionString, dbName)
+	if dbErr != nil {
+		fmt.Println("Error connecting to db: " + dbErr.Error())
+		return
+	}
+
+	removeAllFilesForVersion(db, versionTag)
+
 	if isDirectory {
-		markdownFiles := readDirectory(markdownFileOrFolder, *recursiveFlag)
+		markdownFiles := readDirectory(markdownFileOrFolder, recursiveFlag)
+		for _, mdFile := range markdownFiles {
+			html := convertMarkdownFileToHtml(mdFile.Path)
+			saveHtmlFileToDb(db, mdFile.Name, html, versionTag)
+		}
+	} else {
+		// convert a single file
+		html := convertMarkdownFileToHtml(markdownFileOrFolder)
+		fileName := filepath.Base(markdownFileOrFolder)
+		saveHtmlFileToDb(db, fileName, html, versionTag)
+	}
+
+	duration := time.Since(start).Seconds()
+	fmt.Printf("Generated files in %f (s) \n", duration)
+}
+
+func convertFilesAndWriteToDisk(isDirectory bool, recursiveFlag bool, markdownFileOrFolder string, outputFolderName string) {
+	start := time.Now()
+	if isDirectory {
+		markdownFiles := readDirectory(markdownFileOrFolder, recursiveFlag)
 
 		ch := make(chan string, len(markdownFiles))
 
 		for _, mdFile := range markdownFiles {
-			outputFilePath := generateOutputFilePath(mdFile, *outputFolderName)
-			go convertMarkdownFileToHtmlInParallel(mdFile.Path, outputFilePath, ch)
+			outputFilePath := generateOutputFilePath(mdFile, outputFolderName)
+			go convertMarkdownFilesAndSaveInParallel(mdFile.Path, outputFilePath, ch)
 		}
 
 		for range markdownFiles {
@@ -43,7 +94,7 @@ func main() {
 		}
 
 	} else {
-		outputFileName := convertMarkdownFileToHtml(markdownFileOrFolder, *outputFolderName)
+		outputFileName := convertMarkdownFileAndSave(markdownFileOrFolder, outputFolderName)
 		fmt.Println("Generated file: " + outputFileName)
 	}
 	duration := time.Since(start).Seconds()
@@ -62,7 +113,6 @@ func checkInputFolder(markdownFileOrFolder string) (bool, error) {
 }
 
 func checkOutputFolder(outputFolder string) error {
-
 	if outputFolder == "output" {
 		if _, existsErr := os.Stat(outputFolder); os.IsNotExist(existsErr) {
 			fmt.Println("No output folder specified, creating folder \"output\"")
@@ -77,8 +127,6 @@ func checkOutputFolder(outputFolder string) error {
 	if errStat != nil {
 		return errStat
 	}
-
-	// TODO check if this is a folder
 
 	return nil
 }
